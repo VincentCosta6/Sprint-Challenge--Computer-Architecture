@@ -1,18 +1,23 @@
 """CPU functionality."""
 
 import sys
+import time
+import msvcrt
 
 class CPU:
     """Main CPU class."""
 
-    def __init__(self, register_count = 8, calloc_size = 10000, DEBUG = False):
+    def __init__(self, register_count = 9, calloc_size = 10000, DEBUG = False):
         """Construct a new CPU."""
-        self.reg = [0b00000000] * register_count # Flag register is 7
+        self.reg = [0b00000000] * register_count # Flag register is 7, IS register is 6, IM register is 5
         self.ram = [0b00000000] * calloc_size
 
         self.instruction_map = {
             0b00000001: self.HLT,
             0b01000111: self.PRN,
+
+            0b01010010: self.INT,
+            0b00010011: self.IRET,
 
             0b10000010: self.LDI,
             0b01000101: self.PUSH,
@@ -24,6 +29,7 @@ class CPU:
             0b01010000: self.CALL,
             0b00010001: self.RET,
 
+            0b10101010: self.ALU_OP1, # OR
             0b01101001: self.ALU_OP1, # NOT
 
             0b10100000: self.ALU_OP2, # ADD
@@ -31,7 +37,6 @@ class CPU:
             0b10100100: self.ALU_OP2, # MOD
             
             0b10100111: self.ALU_OP2, # CMP
-            0b10101010: self.ALU_OP2, # OR
             0b10101000: self.ALU_OP2, # AND
             0b10101011: self.ALU_OP2, # XOR
             0b10101100: self.ALU_OP2, # SHL
@@ -51,13 +56,19 @@ class CPU:
             0b01101001: "NOT",
             0b10101100: "SHL",
             0b10101101: "SHR",
-            0b11101110: "ADDI"
+            0b11101110: "ADDI",
+        }
+
+        self.INTERRUPT_VECTORS = {
+            0b00000001: 0b11101011,
+            0b00000010: 0b11101100,
         }
 
         self.ram_top = calloc_size - 1
         self.stack_last = 0
         self.instruction = 0
         self.program_end = 0
+        self.disable_interrupts = False
         self.active = False
         self.DEBUG = DEBUG
 
@@ -107,7 +118,7 @@ class CPU:
 
         self.ram[position] = binary_value
 
-    def alu(self, op, reg_a, reg_b, immediate_value = None):
+    def alu(self, op, reg_a, reg_b, immediate_value):
         """ALU operations."""
 
         if op == "ADD":
@@ -188,6 +199,28 @@ class CPU:
         print(f"PRINT: LINE: {self.instruction}, REG: {register}, VAL: {self.reg[register]}")
 
         self.instruction += 2
+
+    def INT(self):
+        register = self.ram[self.instruction + 1]
+        register_value = self.reg[register]
+
+        self.reg[6] = register_value
+
+        self.instruction += 2
+
+    def IRET(self):
+        r4 = self.pop_stack()
+        r3 = self.pop_stack()
+        r2 = self.pop_stack()
+        r1 = self.pop_stack()
+        r0 = self.pop_stack()
+
+        FL = self.pop_stack()
+        instruction = self.pop_stack()
+
+        self.instruction = instruction
+
+        self.disable_interrupts = False
 
     def LDI(self):
         register = self.ram[self.instruction + 1]
@@ -309,6 +342,26 @@ class CPU:
         for i in range(8):
             print(" %02X" % self.reg[i], end='')
 
+    def check_interrupt(self, maskedInterrupts):
+        for i in range(8):
+            shift_1 = maskedInterrupts >> i
+
+            if shift_1 & 0b1 == 0b1:
+                self.reg[6] = 0b00000000
+
+                self.push_stack(self.instruction)
+                self.push_stack(self.reg[7])
+                self.push_stack(self.reg[0])
+                self.push_stack(self.reg[1])
+                self.push_stack(self.reg[2])
+                self.push_stack(self.reg[3])
+                self.push_stack(self.reg[4])
+
+                self.instruction = self.INTERRUPT_VECTORS[0b1 << i]
+                self.disable_interrupts = True
+
+                break
+
     def run(self, instruction_start = 0):
         """Run the CPU."""
         self.run_hot(instruction_start)
@@ -317,7 +370,20 @@ class CPU:
         self.instruction = instruction_start
         self.active = True
 
+        elapsed = time.time()
+
         while self.active:
+            if time.time() - elapsed >= 1:
+                self.reg[5] = 0b1
+
+            if msvcrt.kbhit():
+                key = msvcrt.getch()
+                self.reg[5] = 0b10
+                self.ram[0xF4] = key
+
+            if self.disable_interrupts is False:
+                self.check_interrupt(self.reg[5] & self.reg[6])
+
             instruction_val = self.ram[self.instruction]
 
             self.instruction_map[instruction_val]()
