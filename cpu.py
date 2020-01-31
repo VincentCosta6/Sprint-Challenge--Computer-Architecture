@@ -37,7 +37,7 @@ class CPU:
             0b10101100: self.ALU_OP2, # SHL
             0b10101101: self.ALU_OP2, # SHR
 
-
+            0b11101110: self.ALU_OP3, # ADDI
         }
 
         self.ALU_OPS = {
@@ -51,6 +51,7 @@ class CPU:
             0b01101001: "NOT",
             0b10101100: "SHL",
             0b10101101: "SHR",
+            0b11101110: "ADDI"
         }
 
         self.ram_top = calloc_size - 1
@@ -106,7 +107,7 @@ class CPU:
 
         self.ram[position] = binary_value
 
-    def alu(self, op, reg_a, reg_b):
+    def alu(self, op, reg_a, reg_b, immediate_value = None):
         """ALU operations."""
 
         if op == "ADD":
@@ -146,6 +147,8 @@ class CPU:
             self.reg[reg_a] = self.reg[reg_a] << self.reg[reg_b]
         elif op == "SHR":
             self.reg[reg_a] = self.reg[reg_a] >> self.reg[reg_b]
+        elif op == "ADDI":
+            self.reg[reg_b] = self.reg[reg_a] + immediate_value
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -272,12 +275,16 @@ class CPU:
     def ALU_OP2(self):
         self.ALU_OP_JUMP(3)
 
+    def ALU_OP3(self):
+        self.ALU_OP_JUMP(4)
+
     def ALU_OP_JUMP(self, skip_amount):
         op = self.ALU_OPS[self.ram[self.instruction]]
         register_a = self.ram[self.instruction + 1]
         register_b = self.ram[self.instruction + 2]
+        immediate_value = self.ram[self.instruction + 3]
 
-        self.alu(op, register_a, register_b)
+        self.alu(op, register_a, register_b, immediate_value)
 
         if self.DEBUG:
             print(f"{op.upper()}: LINE: {self.instruction}, REG_A: {register_a}, REG_B: {register_b}")
