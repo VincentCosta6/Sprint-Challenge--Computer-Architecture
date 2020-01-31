@@ -24,7 +24,6 @@ class CPU:
             0b01010000: self.CALL,
             0b00010001: self.RET,
 
-            0b10101010: self.ALU_OP1, # OR
             0b01101001: self.ALU_OP1, # NOT
 
             0b10100000: self.ALU_OP2, # ADD
@@ -32,6 +31,7 @@ class CPU:
             0b10100100: self.ALU_OP2, # MOD
             
             0b10100111: self.ALU_OP2, # CMP
+            0b10101010: self.ALU_OP2, # OR
             0b10101000: self.ALU_OP2, # AND
             0b10101011: self.ALU_OP2, # XOR
             0b10101100: self.ALU_OP2, # SHL
